@@ -185,7 +185,7 @@ def start_server():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         print("Opening server socket...", end='', flush=True)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #server_socket.settimeout(5)
+        #server_socket.settimeout(30)
         server_socket.bind((HOST, PORT))
         server_socket.listen(1)
         print("ok", flush=True)
@@ -194,7 +194,8 @@ def start_server():
             conn, addr = server_socket.accept()
             if not conn: 
                 continue 
-           
+            conn.settimeout(10)
+            
             print()
             print(addr, "Client connection established", flush=True)
             send_msg(CONNECTION_RECEIVED, conn)
