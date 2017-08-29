@@ -3,46 +3,29 @@ package huey.socketclient;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.usage.NetworkStatsManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.net.wifi.WifiManager;
-import android.os.Environment;
+
 import android.os.StrictMode;
-import android.support.constraint.ConstraintLayout;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.text.format.Formatter;
 import android.text.method.ScrollingMovementMethod;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ListView;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.net.InetAddress;
 
 import java.io.IOException;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.util.Locale;
 
-
-import huey.socketclient.SocketClient;
-
-public class MainActivity extends AppCompatActivity 
+public class MainActivity extends AppCompatActivity
 {
     //TODO Make list of file clickable and add to download input box
 
@@ -58,18 +41,18 @@ public class MainActivity extends AppCompatActivity
 
     private TextView fileView;
     private TextView downloadBar;
-    
+
     private EditText serverIp;
     private EditText fileInput;
-    
+
     private Button connectBtn;
     private Button disconnectBtn;
     private Button downloadBtn;
     private Button fileListBtn;
     private Button helpBtn;
-    
+
     private SocketClient client;
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -81,7 +64,7 @@ public class MainActivity extends AppCompatActivity
 
         // Request permissions to read/write to storage, access wifi state, internet, network state
         requestPermission(this);
-        
+
         try
         {
             client = new SocketClient(this);
@@ -92,7 +75,7 @@ public class MainActivity extends AppCompatActivity
 
         fileView  = (TextView) findViewById(R.id.fileView);
         downloadBar = (TextView) findViewById(R.id.progressBar);
-        
+
         connectBtn = (Button) findViewById(R.id.connect);
         disconnectBtn = (Button) findViewById(R.id.disconnect);
         downloadBtn = (Button) findViewById(R.id.download);
@@ -100,7 +83,7 @@ public class MainActivity extends AppCompatActivity
 
         serverIp = (EditText) findViewById(R.id.serverIp);
         fileInput = (EditText) findViewById(R.id.fileInput);
-        
+
         fileView.setHorizontallyScrolling(true);
         fileView.setMovementMethod(new ScrollingMovementMethod());
 
@@ -111,7 +94,7 @@ public class MainActivity extends AppCompatActivity
         connectBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                try 
+                try
                 {
                     String ip = serverIp.getText().toString();
                     saveIp(ip);
@@ -145,18 +128,17 @@ public class MainActivity extends AppCompatActivity
                 {
                     int fileNo = Integer.parseInt(fileInput.getText().toString());
                     client.download(fileNo);
-                    saveFile();
                 }
                 catch (NumberFormatException e)
                 {
-                    //TODO add alert dialogS
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                    String input = fileInput.getText().toString();
+                    if (input.toLowerCase().equals("all"))
+                        client.downloadAll();
 
+                }
             }
         });
-        
+
         fileListBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -177,11 +159,11 @@ public class MainActivity extends AppCompatActivity
             pAccessWifiState        = ActivityCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_WIFI_STATE),
             pInternet               = ActivityCompat.checkSelfPermission(activity, Manifest.permission.INTERNET),
             pAccessNetworkState     = ActivityCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_NETWORK_STATE);
-        
+
         if (pReadExternalStorage        == PackageManager.PERMISSION_GRANTED
-            && pWriteExternalStorage    == PackageManager.PERMISSION_GRANTED 
-            && pAccessWifiState         == PackageManager.PERMISSION_GRANTED 
-            && pInternet                == PackageManager.PERMISSION_GRANTED 
+            && pWriteExternalStorage    == PackageManager.PERMISSION_GRANTED
+            && pAccessWifiState         == PackageManager.PERMISSION_GRANTED
+            && pInternet                == PackageManager.PERMISSION_GRANTED
             && pAccessNetworkState      == PackageManager.PERMISSION_GRANTED)
         {
             CAN_WRITE_EXTERNAL_STORAGE  = true;
@@ -191,7 +173,7 @@ public class MainActivity extends AppCompatActivity
             CAN_ACCESS_NETWORK_STATE    = true;
             return true;
         }
-        
+
         ActivityCompat.requestPermissions(activity, new String[] {
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
@@ -199,22 +181,22 @@ public class MainActivity extends AppCompatActivity
             Manifest.permission.INTERNET,
             Manifest.permission.ACCESS_NETWORK_STATE,
         }, REQUESTCODE);
-        
+
         return false;
     }
-    
+
     @Override
     public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], 
-                                           int[] grantResults) 
+                                           String permissions[],
+                                           int[] grantResults)
     {
-        switch (requestCode) 
+        switch (requestCode)
         {
-            case REQUESTCODE: 
+            case REQUESTCODE:
             {
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) 
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED)
                 {
                     CAN_WRITE_EXTERNAL_STORAGE      = true;
                     CAN_READ_EXTERNAL_STORAGE       = true;
@@ -283,22 +265,6 @@ public class MainActivity extends AppCompatActivity
             }
         }
         return null;
-    }
-    
-    private void saveFile() throws IOException
-    {
-        File d = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-
-        File testFile2 = new File(d.getPath(), "file.txt");
-        if (!testFile2.exists())
-        {
-            System.out.println("test file 2 didn't exist");
-            testFile2.createNewFile();
-
-        }
-        BufferedWriter writer2 = new BufferedWriter(new FileWriter(testFile2, true /*append*/));
-        writer2.write("hi");
-        writer2.close();
     }
 
     protected void alert(String title, String msg)

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Socket Client</string>
+    <string name="app_name">LazyFiles Client</string>
     <string name="list_file">List files</string>
     <string name="file_num">#</string>
     <string name="download">Download</string>

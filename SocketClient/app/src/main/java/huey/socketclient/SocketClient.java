@@ -3,26 +3,18 @@ package huey.socketclient;
 import android.app.Activity;
 import android.content.Context;
 import android.os.AsyncTask;
-import android.net.wifi.WifiManager;
 import android.os.Environment;
-import android.widget.Button;
 import android.widget.TextView;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.InterfaceAddress;
-import java.net.NetworkInterface;
 import java.net.Socket;
-import java.net.SocketAddress;
-import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -30,12 +22,12 @@ import java.nio.ByteBuffer;
 import java.text.NumberFormat;
 import java.util.Locale;
 
-public class SocketClient
+class SocketClient
 {
 
+    private final String REQUEST_FILE_COUNT          = "REQUEST_FILE_COUNT";
     private final String REQUEST_FILE_LIST           = "REQUEST_FILE_LIST";
     private final String REQUEST_FILE_NAME           = "REQUEST_FILE_NAME";
-    private final String REQUEST_FILE_ALL            = "REQUEST_FILE_ALL";
     private final String REQUEST_FILE_DOWNLOAD       = "REQUEST_FILE_DOWNLOAD";
 
     private final String CONNECTION_RECEIVED         = "CONNECTION_RECEIVED";
@@ -51,6 +43,8 @@ public class SocketClient
 
     private int downloadPt;    
     private int lastDownloadedSize;
+
+    private boolean downloading;
 
     private NumberFormat numFormat;
 
@@ -75,6 +69,8 @@ public class SocketClient
         downloadPt = 0;
         lastDownloadedSize = 0;
         
+        downloading = false;
+
         numFormat = NumberFormat.getNumberInstance(Locale.US);
         
         //host = InetAddress.getLocalHost();
@@ -109,6 +105,16 @@ public class SocketClient
     {
         protected Void doInBackground(Integer... integers)
         {
+            while (getDownloading())
+                try
+                {
+                    Thread.sleep(1000);
+                }
+                catch (InterruptedException e)
+                {
+                    e.printStackTrace();
+                }
+
             sendMsg(REQUEST_FILE_NAME + " " + integers[0]);
 
             try
@@ -160,6 +166,7 @@ public class SocketClient
         ByteBuffer bBuffer = ByteBuffer.wrap(bPayload);
         int totalSize = bBuffer.getInt();
         
+
         //Fill totalBuffer until payload size
         ByteBuffer totalBuffer = null;
         FileOutputStream out = null;
@@ -167,6 +174,7 @@ public class SocketClient
             totalBuffer = ByteBuffer.allocate(totalSize);
         else 
         {
+            setDownloading(true);
             out = new FileOutputStream(file);
         }
 
@@ -223,6 +231,7 @@ public class SocketClient
         if (out != null)
         {
             out.close();
+            setDownloading(false);
             return null;
         }
 
@@ -252,8 +261,8 @@ public class SocketClient
             e.printStackTrace();
         }
     }
-    
-    protected void connectTask()
+
+    private void connectTask()
     {
         System.out.print("Connecting to Socket Server...");
         System.out.flush();
@@ -270,14 +279,14 @@ public class SocketClient
             socket.connect(new InetSocketAddress(serverIp, PORT), 3000);
             
             byte[] serverReply = receive(new DataInputStream(socket.getInputStream()), null);
-            String serverReplyS = new String(serverReply);
-            if (!serverReplyS.equals(CONNECTION_RECEIVED))
+            String msg = new String(serverReply);
+            if (!msg.equals(CONNECTION_RECEIVED))
             {
                 socket.close();
                 socket = null;
                 
                 System.out.println("fail");
-                System.out.println("Server reply: " + new String(serverReplyS));
+                System.out.println("Server reply: " + msg);
             }
             else 
             {
@@ -317,6 +326,9 @@ public class SocketClient
 
     protected void connect(String ip) throws IOException
     {
+        if (socket != null) 
+            disconnect();
+        
         setServerIp(ip);    
         
         if (serverIp != null)
@@ -346,11 +358,39 @@ public class SocketClient
         new DownloadTask().execute(num);
     }
 
+    protected void downloadAll()
+    {
+        try
+        {
+            sendMsg(REQUEST_FILE_COUNT);
+            byte[] serverReply = receive(new DataInputStream(socket.getInputStream()), null);
+            String msg = new String(serverReply);
+            System.out.printf("Server reply (%d bytes): %s\n", serverReply.length, msg);
+            System.out.flush();
+            try
+            {
+                int fileCount = Integer.parseInt(msg);
+                for (int i = 0; i < fileCount; ++i)
+                {
+                    download(i);
+                }
+            }
+            catch (NumberFormatException e)
+            {
+                System.out.println("Unable to download all files. Not a valid file count: " + msg);
+            }
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+    }
+
     protected String getFileList()
     {
         try 
         {
-            sendMsg("REQUEST_FILE_LIST");
+            sendMsg(REQUEST_FILE_LIST);
             byte[] serverReply = receive(new DataInputStream(socket.getInputStream()), null);
             System.out.printf("Server reply (%d bytes): %s\n", serverReply.length, new String(serverReply));
             System.out.flush();
@@ -368,43 +408,23 @@ public class SocketClient
         return socket != null;
     }
 
-    protected void setServerIp(String ip)
-    {
-        serverIp = ip;
-    }
+    protected void setServerIp(String ip) { serverIp = ip; }
 
-    protected String getServerIp()
-    {
-        return serverIp;
-    }
+    protected String getServerIp() { return serverIp; }
 
-    protected void setContext(Context context)
-    {
-        this.context = context;
-    }
+    protected void setContext(Context context) { this.context = context; }
 
-    protected Context getContext()
-    {
-        return context;
-    }
+    protected Context getContext() { return context; }
     
-    protected void setDownloadPt(int pt)
-    {
-        downloadPt = pt;
-    }
+    protected void setDownloadPt(int pt) { downloadPt = pt; }
 
-    protected int getDownloadPt()
-    {
-        return downloadPt;
-    }
+    protected int getDownloadPt() { return downloadPt; }
 
-    protected void setLastDownloadedSize(int size)
-    {
-        lastDownloadedSize = size;
-    }
+    protected void setLastDownloadedSize(int size) { lastDownloadedSize = size; }
 
-    protected int getLastDownloadedSize()
-    {
-        return lastDownloadedSize;
-    }
+    protected int getLastDownloadedSize() { return lastDownloadedSize; }
+
+    protected void setDownloading(boolean state) { downloading = state; }
+
+    protected boolean getDownloading() { return downloading; }
 }

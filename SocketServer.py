@@ -3,15 +3,26 @@
 import socket, os, time
 
 #   (Valid client messages)
-#   CONNECTION_END          Client ended connection
-#   REQUEST_FILE_LIST       Send/Receive all available files to download
-#   REQUEST_FILE_ALL        Send/Receive all files listed
-#   REQUEST_FILE_#          Send/Receive file #
 #       # = valid file number integer 0 ... n
+#
+#   REQUEST_FILE_COUNT              Send/Receive number of files
+#   REQUEST_FILE_LIST               Send/Receive all available files to download
+#   REQUEST_FILE_NAME #             Send/Receive name of file #
+#   REQUEST_FILE_DOWNLOAD_ALL       Send/Receive all files listed
+#   REQUEST_FILE_DOWNLOAD #         Send/Recieve file #
+
+#   CONNECTION_RECEIVED             Received client connection
+#   CONNECTION_END                  Client ended connection
+
+REQUEST_FILE_COUNT          = "REQUEST_FILE_COUNT"
+REQUEST_FILE_LIST           = "REQUEST_FILE_LIST"
+REQUEST_FILE_NAME           = "REQUEST_FILE_NAME"
+REQUEST_FILE_DOWNLOAD       = "REQUEST_FILE_DOWNLOAD"
+                                                       
+CONNECTION_RECEIVED         = "CONNECTION_RECEIVED"
+CONNECTION_END              = "CONNECTION_END"
 
 DIRECTORY_LIST = r".\Directory-List.txt"
-#PATH = r"C:\Users\JJ\code\java\SocketTest\out\production\SocketTest\\"
-#TESTFILE = r"async.pdf"
 
 HOST                = ''                 # Local host
 PORT                = 1234               # Random port
@@ -21,15 +32,14 @@ MAX_FILEREAD        = 65536              # Amount (bytes) to send ~65kb
 
 file_list = None
 
-def append(bytes, buffer_):
-    for b in bytes:
+def append(bytes_, buffer_):
+    for b in bytes_:
         buffer_.append(b)
 
 #int size
 def size_to_bytes(size):
     return size.to_bytes(4, byteorder="big", signed=False) 
 
-#Returns (bytes) = (byte) data size + (byte) data
 def data_to_bytes(data):
     if type(data) is str:
         b_data = bytearray(data, "utf-8")
@@ -55,7 +65,7 @@ def recv_size(conn):
 
     #Get size of payload
     buffer_ = bytearray()
-    if len(data) > 4: 
+    if len(data) >= 4: 
         payload_size = int.from_bytes(data[:4], byteorder="big", signed=False)
         for byte in data[4:]:
             buffer_.append(byte)
@@ -122,6 +132,9 @@ def send_file_list(conn):
     ])
     send_msg(data, conn)
 
+def send_file_name(file_no, conn):
+    send_msg(file_list[file_no]["name"], conn)
+
 def send_file(file_no, conn):
     f = file_list[file_no]
     file_path = "".join([f["path"], '\\', f["name"]])
@@ -145,19 +158,27 @@ def send_msg(msg, conn):
     conn.sendall(data)
 
 def handle_client_msg(client_msg, conn, addr):
-    if "REQUEST_FILE_" in client_msg:
+    if "REQUEST_FILE" in client_msg:
         if "REQUEST_FILE_LIST" == client_msg:
             send_file_list(conn)
-        else:
-            _, _, file_no = client_msg.partition("REQUEST_FILE_")
+        elif "REQUEST_FILE_NAME" in client_msg:
+            _, _, file_no = client_msg.partition("REQUEST_FILE_NAME")
             try:
                 file_no = int(file_no)
-                print(addr, "Requested file", file_no, ":", file_list[file_no]["name"], flush=True)
-                send_file(file_no, conn)
-                #send_msg("Received file request for " + str(file_no), conn)
+                print(addr, "Requested file name", file_no, ":", file_list[file_no]["name"], flush=True)
+                send_file_name(file_no, conn)
             except ValueError as e:
                 send_msg("UNKNOWN_REQUEST -- " + client_msg, conn)
-        
+        elif "REQUEST_FILE_DOWNLOAD" in client_msg:
+            _, _, file_no = client_msg.partition("REQUEST_FILE_DOWNLOAD")
+            try:
+                file_no = int(file_no)
+                print(addr, "Requested file download", file_no, ":", file_list[file_no]["name"], flush=True)
+                send_file(file_no, conn)
+            except ValueError as e:
+                send_msg("UNKNOWN_REQUEST -- " + client_msg, conn)
+        elif "REQUEST_FILE_COUNT" == client_msg:
+            send_msg(str(len(file_list)), conn)
 
 def start_server():
     global file_list
@@ -176,7 +197,7 @@ def start_server():
            
             print()
             print(addr, "Client connection established", flush=True)
-            send_msg(CONNECTION_RECEIVED)
+            send_msg(CONNECTION_RECEIVED, conn)
             
             while conn:
                 #Refresh file list
