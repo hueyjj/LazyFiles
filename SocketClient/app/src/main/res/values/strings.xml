@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Socket Client</string>
+    <string name="list_file">List files</string>
+    <string name="file_num">#</string>
+    <string name="download">Download</string>
+    <string name="help">Help</string>
+    <string name="server_ip_address">Server ip address</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+</resources>
