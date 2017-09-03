@@ -32,7 +32,8 @@ class SocketClient
 
     private final String CONNECTION_RECEIVED         = "CONNECTION_RECEIVED";
     private final String CONNECTION_END              = "CONNECTION_END";
-    
+
+    private final int           MAX_BYTES_IN = 1048576;
     private final int           PORT = 1234; //TODO Dynamically assign port number change on server end too
     private InetAddress         host;
     private Socket              socket;
@@ -41,10 +42,11 @@ class SocketClient
 
     private Context context;
 
-    private int downloadPt;    
-    private int lastDownloadedSize;
-
     private boolean downloading;
+    private int downloadPt;    
+    private long lastDownloadedSize;
+
+    private int currFilesDownloaded, totalFilesToDownload;
 
     private NumberFormat numFormat;
 
@@ -164,36 +166,43 @@ class SocketClient
             }
         }
         ByteBuffer bBuffer = ByteBuffer.wrap(bPayload);
-        int totalSize = bBuffer.getInt();
+        long totalSize = bBuffer.getInt();
         
 
         //Fill totalBuffer until payload size
         ByteBuffer totalBuffer = null;
         FileOutputStream out = null;
         if (file == null)
-            totalBuffer = ByteBuffer.allocate(totalSize);
+            totalBuffer = ByteBuffer.allocate((int)totalSize);
         else 
         {
             setDownloading(true);
             out = new FileOutputStream(file);
         }
 
-        int currentSize = 0, 
-            currentPt = 0, 
+        byte[] buffer = new byte[MAX_BYTES_IN];
+        long currentSize = 0;
+        int currentPt = 0, 
+            numBytesIn = 0,
             downloadPt;
-        while (currentSize < totalSize) 
+        while (currentSize < totalSize && socket != null)
         {
+            System.out.println(currentSize + " / " + totalSize + " bytes");
             try
             {
                 if (out == null)
                 {
-                    totalBuffer.put(input.readByte());
+                    
+                    numBytesIn = input.read(buffer, 0, MAX_BYTES_IN);
+                    totalBuffer.put(buffer, 0, numBytesIn);
+                    //totalBuffer.put(input.readByte());
                     currentSize = totalBuffer.position();
                 }
                 else
                 {
-                    out.write(input.readByte());
-                    currentSize++;
+                    numBytesIn = input.read(buffer, 0, MAX_BYTES_IN);
+                    out.write(buffer, 0, numBytesIn);
+                    currentSize += numBytesIn;
                 }
             } 
             catch (IOException e) 
@@ -218,7 +227,7 @@ class SocketClient
                 System.out.flush();
             }
         }
-        System.out.println("\rDownload complete " + currentSize + " bytes");
+        System.out.println("\rDownload complete " + currentSize + " / " + totalSize + " bytes");
         setLastDownloadedSize(currentSize);
         ((Activity) context).runOnUiThread(new Runnable() {
             @Override
@@ -369,11 +378,27 @@ class SocketClient
             System.out.flush();
             try
             {
-                int fileCount = Integer.parseInt(msg);
+                int fileCount = totalFilesToDownload = Integer.parseInt(msg);
                 for (int i = 0; i < fileCount; ++i)
                 {
                     download(i);
+                    currFilesDownloaded = i + 1;
+                    ((Activity) context).runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            TextView connectStatus = (TextView) ((Activity)context).findViewById(R.id.connectionStatus);
+                            if (socket != null)
+                                connectStatus.setText(currFilesDownloaded + " / " + totalFilesToDownload + " files downloaded");
+                        }
+                    });
                 }
+                ((Activity) context).runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        TextView progressBar = (TextView) ((Activity)context).findViewById(R.id.progressBar);
+                        progressBar.setText("Download complete");
+                    }
+                });
             }
             catch (NumberFormatException e)
             {
@@ -420,9 +445,9 @@ class SocketClient
 
     protected int getDownloadPt() { return downloadPt; }
 
-    protected void setLastDownloadedSize(int size) { lastDownloadedSize = size; }
+    protected void setLastDownloadedSize(long size) { lastDownloadedSize = size; }
 
-    protected int getLastDownloadedSize() { return lastDownloadedSize; }
+    protected long getLastDownloadedSize() { return lastDownloadedSize; }
 
     protected void setDownloading(boolean state) { downloading = state; }
 

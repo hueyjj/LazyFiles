@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-import socket, os, time
+import socket
+import os
+import time
 
 #   (Valid client messages)
 #       # = valid file number integer 0 ... n
@@ -28,7 +30,7 @@ HOST                = ''                 # Local host
 PORT                = 1234               # Random port
 MAX_PAYLOAD         = 2048               # Amount (bytes) to receive ~2kb
 MAX_BYTES           = 2**31              # ~2.147483648 GB 
-MAX_FILEREAD        = 65536              # Amount (bytes) to send ~65kb
+MAX_FILEREAD        = 1048576            # Amount (bytes) to send 
 
 file_list = None
 
@@ -60,7 +62,7 @@ def data_to_send(b_size, b_data):
 def recv_size(conn):
     try:
         data = conn.recv(MAX_PAYLOAD)
-    except socket.timeout as e:
+    except (socket.timeout, ConnectionResetError) as e:
         return None
 
     #Get size of payload
@@ -93,22 +95,25 @@ def read_directory_list(dir_list):
     for dir_ in open(dir_list, "r"):
         dir_ = dir_.strip()
         files = os.listdir(path=dir_)
+        
         for file_ in files:
             full_path = "".join([dir_, "\\", file_]) 
             
-            file_stats = os.stat(full_path)
-            file_size = file_stats.st_size
-            if (os.path.isdir(full_path)): 
-                file_type = "..." #Directory
-            else:
-                _, file_type = os.path.splitext(full_path)
-            
-            list_.append({
-                "name": file_,
-                "type": file_type,
-                "size": file_size,
-                "path": dir_,
-            })
+            # Remove directories and other cases
+            _, ext = os.path.splitext(full_path)
+            invalid_ext = [".zip", ".html"]
+            if os.path.isdir(full_path) is False and ext not in invalid_ext:
+                file_stats = os.stat(full_path)
+                file_size = file_stats.st_size
+                if (os.path.isdir(full_path)): 
+                    file_type = "..." #Directory
+                
+                list_.append({
+                    "name": file_,
+                    "type": ext,
+                    "size": file_size,
+                    "path": dir_,
+                })
     return list_
 
 def send_file_list(conn):
@@ -135,7 +140,7 @@ def send_file_list(conn):
 def send_file_name(file_no, conn):
     send_msg(file_list[file_no]["name"], conn)
 
-def send_file(file_no, conn):
+def send_file(file_no, conn, addr):
     f = file_list[file_no]
     file_path = "".join([f["path"], '\\', f["name"]])
     with open(file_path, "rb") as file_:
@@ -144,12 +149,16 @@ def send_file(file_no, conn):
         data = file_.read(MAX_FILEREAD)
         data = data_to_send(data_size, data)
         conn.sendall(data)
+        current_sent = len(data) - 4    # Subtract size of data at beginning
         while True:
             data = file_.read(MAX_FILEREAD)
             if not data: 
                 break
             data = data_to_bytes(data)
             conn.sendall(data)
+            current_sent += len(data)
+            print("\r", addr, current_sent, '/', file_size, "bytes sent", flush=True, end='')
+        print("\r", addr, current_sent, '/', file_size, "bytes sent", flush=True)
 
 def send_msg(msg, conn):
     data = data_to_bytes(msg)
@@ -174,9 +183,10 @@ def handle_client_msg(client_msg, conn, addr):
             try:
                 file_no = int(file_no)
                 print(addr, "Requested file download", file_no, ":", file_list[file_no]["name"], flush=True)
-                send_file(file_no, conn)
+                send_file(file_no, conn, addr)
             except ValueError as e:
                 send_msg("UNKNOWN_REQUEST -- " + client_msg, conn)
+        
         elif "REQUEST_FILE_COUNT" == client_msg:
             send_msg(str(len(file_list)), conn)
 
@@ -194,26 +204,36 @@ def start_server():
             conn, addr = server_socket.accept()
             if not conn: 
                 continue 
-            conn.settimeout(10)
+            conn.settimeout(60)     # 1 minute timeout
             
             print()
             print(addr, "Client connection established", flush=True)
             send_msg(CONNECTION_RECEIVED, conn)
             
             while conn:
-                #Refresh file list
+                # Refresh file list
                 file_list = read_directory_list(DIRECTORY_LIST)
 
                 input_data = recv_size(conn)
                 if input_data:
                     client_msg = input_data.decode()
                 else:
-                    print(addr, "Connection lost", flush=True)
+                    print(addr, "Connection lost: cannot read client reply", flush=True)
                     conn = None
                     continue
                 
                 print(addr, "msg:", client_msg, flush=True)
-                handle_client_msg(client_msg, conn, addr)
+                try:
+                    handle_client_msg(client_msg, conn, addr)
+                except (socket.timeout, ConnectionResetError) as e:
+                    print(addr, "Connection lost: timeout or reset", flush=True)
+                    conn = None
+                    continue
+                except Exception as e:
+                    print(addr, "Connection lost: unknown error", flush=True)
+                    print(e, flush=True)
+                    conn = None
+                    continue
                 
                 if "CONNECTION_END" == client_msg: 
                     print(addr, "Connection ending...", end='', flush=True)
