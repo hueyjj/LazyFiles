@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import sys
+import logging
 import socket
 import os
 import time
@@ -33,6 +35,12 @@ MAX_BYTES           = 2**31              # ~2.147483648 GB
 MAX_FILEREAD        = 1048576            # Amount (bytes) to send 
 
 file_list = None
+
+# Record LazyFile information
+logging.basicConfig(filename="LazyFiles.log", filemode="w", level=logging.DEBUG)
+if sys.stdout:
+    std_handler = logging.StreamHandler(sys.stdout)
+    logging.getLogger().addHandler(std_handler)
 
 def append(bytes_, buffer_):
     for b in bytes_:
@@ -74,15 +82,14 @@ def recv_size(conn):
         current_size = len(buffer_) 
     else:
         #Exit if there's no payload
-        print("Unable to determine payload size", flush=True)
+        logging.error("%s Unable to determine payload size", conn)
         return None
     
-    #print("current size", current_size, "payload size", payload_size, flush=True)
     while current_size < payload_size:
         try:
             data = conn.recv(MAX_PAYLOAD)
         except socket.timeout as e:
-            print("Max timeout reached for payload size", payload_size, "...unable to continue to receive more data")
+            logging.warning("Max timeout reached for payload size %d: unable to continue to receive more data", payload_size)
             return None
             
         append(data, buffer_)
@@ -157,8 +164,8 @@ def send_file(file_no, conn, addr):
             data = data_to_bytes(data)
             conn.sendall(data)
             current_sent += len(data)
-            print("\r", addr, current_sent, '/', file_size, "bytes sent", flush=True, end='')
-        print("\r", addr, current_sent, '/', file_size, "bytes sent", flush=True)
+            #print("\r %s %d / %d bytes sent" % (addr, current_sent, file_size), flush=True, end='')
+        logging.info("%s %d / %d bytes sent", addr, current_sent, file_size)
 
 def send_msg(msg, conn):
     data = data_to_bytes(msg)
@@ -174,7 +181,7 @@ def handle_client_msg(client_msg, conn, addr):
             _, _, file_no = client_msg.partition("REQUEST_FILE_NAME")
             try:
                 file_no = int(file_no)
-                print(addr, "Requested file name", file_no, ":", file_list[file_no]["name"], flush=True)
+                logging.info("%s Requested file name %d: %s", addr, file_no, file_list[file_no]["name"])
                 send_file_name(file_no, conn)
             except ValueError as e:
                 send_msg("UNKNOWN_REQUEST -- " + client_msg, conn)
@@ -182,7 +189,7 @@ def handle_client_msg(client_msg, conn, addr):
             _, _, file_no = client_msg.partition("REQUEST_FILE_DOWNLOAD")
             try:
                 file_no = int(file_no)
-                print(addr, "Requested file download", file_no, ":", file_list[file_no]["name"], flush=True)
+                logging.info("%s Requested file download %d: %s", addr, file_no, file_list[file_no]["name"])
                 send_file(file_no, conn, addr)
             except ValueError as e:
                 send_msg("UNKNOWN_REQUEST -- " + client_msg, conn)
@@ -193,12 +200,12 @@ def handle_client_msg(client_msg, conn, addr):
 def start_server():
     global file_list
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        print("Opening server socket...", end='', flush=True)
+        logging.info("Trying to open server socket at %s %d", HOST if HOST else "localhost", PORT)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         #server_socket.settimeout(30)
         server_socket.bind((HOST, PORT))
         server_socket.listen(1)
-        print("ok", flush=True)
+        logging.info("Server socket opened at %s %d", HOST if HOST else "localhost", PORT)
         
         while True:
             conn, addr = server_socket.accept()
@@ -206,8 +213,7 @@ def start_server():
                 continue 
             conn.settimeout(60)     # 1 minute timeout
             
-            print()
-            print(addr, "Client connection established", flush=True)
+            logging.info("%s Client connection established", addr)
             send_msg(CONNECTION_RECEIVED, conn)
             
             while conn:
@@ -218,33 +224,36 @@ def start_server():
                 if input_data:
                     client_msg = input_data.decode()
                 else:
-                    print(addr, "Connection lost: cannot read client reply", flush=True)
+                    logging.debug("%s Connection lost: cannot read client reply", addr)
                     conn = None
                     continue
                 
-                print(addr, "msg:", client_msg, flush=True)
+                logging.info("%s msg: %s", addr, client_msg)
                 try:
                     handle_client_msg(client_msg, conn, addr)
                 except (socket.timeout, ConnectionResetError) as e:
-                    print(addr, "Connection lost: timeout or reset", flush=True)
+                    logging.error("%s Connection lost: timeout or reset", addr)
                     conn = None
                     continue
                 except Exception as e:
-                    print(addr, "Connection lost: unknown error", flush=True)
-                    print(e, flush=True)
+                    logging.error("%s Connection lost: unknown error", addr)
+                    logging.exception("%s", e)
                     conn = None
                     continue
                 
                 if "CONNECTION_END" == client_msg: 
-                    print(addr, "Connection ending...", end='', flush=True)
+                    logging.error("%s Connection ending...", addr)
                     conn.close()
                     conn = None
-                    print("ok", flush=True)
+                    logging.error("%s Connection ended", addr)
     
-        print("Closing server socket...", end="", flush=True)
+        logging.info("Closing server socket")
         server_socket.close()
-        print("ok", flush=True)
+        logging.info("Server socket closed")
+    
+    std_handler.close()
 
 if __name__ == "__main__":
     start_server()
+    logging.shutdown()
 
