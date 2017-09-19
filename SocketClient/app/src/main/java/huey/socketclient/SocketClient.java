@@ -33,7 +33,7 @@ class SocketClient
     private final String CONNECTION_RECEIVED         = "CONNECTION_RECEIVED";
     private final String CONNECTION_END              = "CONNECTION_END";
 
-    private final int           MAX_BYTES_IN = 1048576;
+    private final int           MAX_BYTES_IN = (1 << 25);   // 2^n
     private final int           PORT = 1234; //TODO Dynamically assign port number change on server end too
     private InetAddress         host;
     private Socket              socket;

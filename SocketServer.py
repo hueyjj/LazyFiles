@@ -32,7 +32,7 @@ HOST                = ''                 # Local host
 PORT                = 1234               # Random port
 MAX_PAYLOAD         = 2048               # Amount (bytes) to receive ~2kb
 MAX_BYTES           = 2**31              # ~2.147483648 GB 
-MAX_FILEREAD        = 1048576            # Amount (bytes) to send 
+MAX_FILEREAD        = 2**25              # Amount (bytes) to send 
 
 file_list = None
 
