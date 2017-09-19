@@ -78,19 +78,19 @@ Example local IPv4 address: 10.0.0.30
 
 #### Running LazyFiles (Android) client...
 
-- Open LazyFiles
+-Open LazyFiles
 
-- Enter IPv4 address
+-Enter IPv4 address
 
-- Connect
-- 
-- List Files (If it works, a list of files should be outputted on the Android device.)
-- 
-- Enter a file number (starts from 0)
-- 
-- Download
-- 
-- File saved should be at 
+-Connect
+
+-List Files (If it works, a list of files should be outputted on the Android device.)
+
+-Enter a file number (starts from 0)
+
+-Download
+
+-File saved should be at 
 
 /storage/SD-CARD-SERIAL-NUMBER/USER.socketclient/files/Movies
 
