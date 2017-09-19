@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Environment;
+import android.support.v4.os.EnvironmentCompat;
 import android.widget.TextView;
 
 import java.io.DataInputStream;
@@ -124,7 +125,13 @@ class SocketClient
                 byte[] serverReply = receive(new DataInputStream(socket.getInputStream()), null);
                 String fileName = new String(serverReply);
 
-                File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+
+                //File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                File dir = getContext().getExternalFilesDirs(Environment.DIRECTORY_MOVIES)[1];
+
+                if (!dir.exists())
+                    dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+
                 File file = new File(dir.getPath(), fileName);
                 if (!file.exists())
                     file.createNewFile();
@@ -187,7 +194,7 @@ class SocketClient
             downloadPt;
         while (currentSize < totalSize && socket != null)
         {
-            System.out.println(currentSize + " / " + totalSize + " bytes");
+            //System.out.println(currentSize + " / " + totalSize + " bytes");
             try
             {
                 if (out == null)
