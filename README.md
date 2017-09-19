@@ -78,18 +78,29 @@ Example local IPv4 address: 10.0.0.30
 
 #### Running LazyFiles (Android) client...
 
-Open LazyFiles
+- Open LazyFiles
 
-Enter IPv4 address
+- Enter IPv4 address
 
-Connect
+- Connect
+- 
+- List Files (If it works, a list of files should be outputted on the Android device.)
+- 
+- Enter a file number (starts from 0)
+- 
+- Download
+- 
+- File saved should be at 
 
-List Files (If it works, a list of files should be outputted on the Android device.)
+/storage/SD-CARD-SERIAL-NUMBER/USER.socketclient/files/Movies
 
-Enter a file number (starts from 0)
+or 
 
-Download
+/storage/emulated/0/Download
 
-File saved should be at /storage/emulated/0/Download
+- Use a file explorer on Android to reach the file or however way.
 
-Use a file explorer on Android to reach the file or however way.
+##### Important
+If the file is saved in an application's local space, when the application is uninstalled, **all** 
+files will be deleted along with it. A workaround is to relocate the entire /path/to/directory/ to 
+a non-local space, for example /storage/SD-CARD-SERIAL-NUMBER.
