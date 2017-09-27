@@ -127,7 +127,11 @@ class SocketClient
 
 
                 //File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                File dir = getContext().getExternalFilesDirs(Environment.DIRECTORY_MOVIES)[1];
+                File dir;
+                if (getContext().getExternalFilesDirs(Environment.DIRECTORY_MOVIES).length > 1)
+                    dir = getContext().getExternalFilesDirs(Environment.DIRECTORY_MOVIES)[1];
+                else
+                    dir = getContext().getExternalFilesDirs(Environment.DIRECTORY_MOVIES)[0];
 
                 if (!dir.exists())
                     dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
@@ -172,17 +176,26 @@ class SocketClient
                 //Handle exception here
             }
         }
+
         ByteBuffer bBuffer = ByteBuffer.wrap(bPayload);
-        long totalSize = bBuffer.getInt();
-        
+        long totalSize;
 
         //Fill totalBuffer until payload size
         ByteBuffer totalBuffer = null;
         FileOutputStream out = null;
         if (file == null)
-            totalBuffer = ByteBuffer.allocate((int)totalSize);
+        {
+            totalSize = bBuffer.getInt();
+            totalBuffer = ByteBuffer.allocate((int) totalSize);
+        }
         else 
         {
+            long value = 0;
+            for (int i = 0; i < bPayload.length; i++)
+            {
+                value = (value << 8) + (bPayload[i] & 0xff);
+            }
+            totalSize = value;
             setDownloading(true);
             out = new FileOutputStream(file);
         }
@@ -199,7 +212,6 @@ class SocketClient
             {
                 if (out == null)
                 {
-                    
                     numBytesIn = input.read(buffer, 0, MAX_BYTES_IN);
                     totalBuffer.put(buffer, 0, numBytesIn);
                     //totalBuffer.put(input.readByte());
